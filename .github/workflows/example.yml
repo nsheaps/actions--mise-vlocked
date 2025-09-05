@@ -1,0 +1,32 @@
+name: Example Usage
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Example 1: Basic usage with locked version
+      - name: Setup mise (locked version)
+        uses: nsheaps/actions--mise-vlocked@v2
+        with:
+          tool_versions: |
+            node 20.0.0
+            python 3.11.0
+      
+      # Example 2: Override version if needed
+      - name: Setup mise (custom version)  
+        uses: nsheaps/actions--mise-vlocked@v2
+        with:
+          version: v2025.8.0
+          mise_toml: |
+            [tools]
+            node = "18.0.0"
+      
+      - name: Verify tools are available
+        run: |
+          node --version
+          python --version
