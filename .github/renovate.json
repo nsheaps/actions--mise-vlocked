@@ -1,0 +1,32 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":automergeMinor"
+  ],
+  "automerge": true,
+  "platformAutomerge": true,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["^action\\.ya?ml$"],
+      "matchStrings": [
+        "version:\\s*required:\\s*false\\s*description:[^\\n]*\\n\\s*default:\\s*['\"](?<currentValue>v?[^'\"\\s]+)['\"]"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "jdx/mise",
+      "versioningTemplate": "semver-coerced"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["regex"],
+      "matchDepNames": ["jdx/mise"],
+      "automerge": true,
+      "addLabels": ["dependencies", "mise"],
+      "commitMessageTopic": "mise version",
+      "commitMessageExtra": "to {{newVersion}}",
+      "semanticCommitType": "chore"
+    }
+  ]
+}
