@@ -1,0 +1,102 @@
+name: Versioning
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract mise version from action.yml
+        id: mise-version
+        run: |
+          MISE_VERSION=$(grep -E "^\s*default:\s*['\"]v?[^'\"]+['\"]" action.yml | head -1 | sed -E "s/.*default:\s*['\"]v?([^'\"]+)['\"].*/\1/")
+          echo "mise-version=${MISE_VERSION}" >> $GITHUB_OUTPUT
+          echo "Current mise version: ${MISE_VERSION}"
+
+      - name: Get latest upstream action version
+        id: upstream-version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          UPSTREAM_VERSION=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/jdx/mise-action/releases/latest" | jq -r '.tag_name')
+          echo "upstream-version=${UPSTREAM_VERSION}" >> $GITHUB_OUTPUT
+          echo "Latest upstream version: ${UPSTREAM_VERSION}"
+          
+          # Extract semantic version parts
+          if [[ $UPSTREAM_VERSION =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+            echo "major=${MAJOR}" >> $GITHUB_OUTPUT
+            echo "minor=${MINOR}" >> $GITHUB_OUTPUT
+            echo "patch=${PATCH}" >> $GITHUB_OUTPUT
+            echo "Parsed version - Major: ${MAJOR}, Minor: ${MINOR}, Patch: ${PATCH}"
+          else
+            echo "Error: Could not parse upstream version"
+            exit 1
+          fi
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create version tags
+        env:
+          MISE_VERSION: ${{ steps.mise-version.outputs.mise-version }}
+          UPSTREAM_VERSION: ${{ steps.upstream-version.outputs.upstream-version }}
+          MAJOR: ${{ steps.upstream-version.outputs.major }}
+          MINOR: ${{ steps.upstream-version.outputs.minor }}
+          PATCH: ${{ steps.upstream-version.outputs.patch }}
+        run: |
+          # Create the full tag with mise version suffix
+          FULL_TAG="${UPSTREAM_VERSION}-mise-${MISE_VERSION}"
+          echo "Creating full tag: ${FULL_TAG}"
+          
+          # Check if tag already exists
+          if git tag -l | grep -q "^${FULL_TAG}$"; then
+            echo "Tag ${FULL_TAG} already exists, skipping creation"
+          else
+            git tag "${FULL_TAG}"
+            echo "Created tag: ${FULL_TAG}"
+          fi
+          
+          # Create/update semantic version tags
+          MAJOR_TAG="v${MAJOR}"
+          MINOR_TAG="v${MAJOR}.${MINOR}"
+          PATCH_TAG="${UPSTREAM_VERSION}"
+          
+          for TAG in "${MAJOR_TAG}" "${MINOR_TAG}" "${PATCH_TAG}"; do
+            echo "Processing tag: ${TAG}"
+            
+            # Delete existing tag if it exists
+            if git tag -l | grep -q "^${TAG}$"; then
+              git tag -d "${TAG}"
+              echo "Deleted existing tag: ${TAG}"
+            fi
+            
+            # Create new tag
+            git tag "${TAG}"
+            echo "Created tag: ${TAG}"
+          done
+
+      - name: Push tags
+        run: |
+          # Push all tags with force to update existing ones
+          git push origin --tags --force
+          echo "All tags pushed successfully"
+
+      - name: List created tags
+        run: |
+          echo "Current tags:"
+          git tag -l | sort -V
