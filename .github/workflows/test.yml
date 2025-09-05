@@ -1,0 +1,21 @@
+name: Test Action
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test mise action
+        uses: ./
+        with:
+          install: false  # Don't install tools, just test the action loads
+          log_level: debug
+      - name: Verify mise is available
+        run: |
+          which mise
+          mise --version
